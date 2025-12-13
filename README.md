@@ -7,7 +7,7 @@ When streaming real-time audio from a PSTN leg to a WebSocket leg, e.g. for conn
 To implement such solution, the Voice API application needs to:</br>
 - Establish first the WebSocket leg to the middleware (aka connector) server or to the AI engine provider,
 - Then establish the PSTN leg,
-- Once the PSTN leg ia answered by callee, the audio from the callee is streamed real time via the WebSocket to the middleware server or directly to the AI engine provider.
+- Once the PSTN leg is answered by callee, the audio from the callee is streamed real time via the WebSocket to the middleware server or directly to the AI engine provider.
 
 That WebSocket handles bi-directional audio, so any possible speech answer from the AI engine is streamed back to the callee recipient through the WebSocket.
 
