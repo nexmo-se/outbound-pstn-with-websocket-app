@@ -63,7 +63,7 @@ const processorServer = process.env.PROCESSOR_SERVER;
 
 //-------------------
 
-let uuidTracking = {}; // dictrionary
+let uuidTracking = {}; // dictionary
 
 function addSessionIdToUuidTracking(id) {
   uuidTracking[id] = {};
