@@ -32,7 +32,7 @@ from the ngrok web UI menu, follow the **Setup and Installation** guide.
 Set up two tunnels,<br>
 one to forward to the local port 6000 (as the Connector application will be listening on port 6000),<br>
 the other one to the local port 8000 for this Voice API application,<br>
-see this [sample yaml configuration file](https://ngrok.com/docs/agent/config/v2/#define-two-tunnels-named-httpbin-and-demo)(see paragraph titled "Define two tunnels named ‘httpbin’ and ‘demo’"), but it needs port 6000 and 8000 as actual values,<br>
+see this [sample yaml configuration file](https://ngrok.com/docs/agent/config/v2/#define-two-tunnels-named-httpbin-and-demo) (see paragraph titled "Define two tunnels named ‘httpbin’ and ‘demo’"), but it needs port 6000 and 8000 as actual values,<br>
 depending if you have a paid ngrok account or not, you may or may not be able to set (static) domain names.
 
 Start ngrok to start both tunnels that forward to local ports 6000 and 8000, e.g.<br>
