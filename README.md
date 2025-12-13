@@ -68,7 +68,7 @@ For the next steps, you will need:</br>
 - Your [Vonage API key](https://dashboard.nexmo.com/settings) (as **`API_KEY`**)</br>
 - Your [Vonage API secret](https://dashboard.nexmo.com/settings), not signature secret, (as **`API_SECRET`**)</br>
 - Your `application ID` (as **`APP_ID`**),</br>
-- The **`phone number linked`** to your application (as **`SERVICE_PHONE_NUMBER`**), your phone will **call that number**,</br>
+- The **`phone number linked`** to your application (as **`SERVICE_PHONE_NUMBER`**), that's the phone number that will be seen by callees.</br>
 
 ### Local setup
 
