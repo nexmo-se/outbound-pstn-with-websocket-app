@@ -77,7 +77,7 @@ Update parameters in .env file<br>
 
 Have Node.js installed on your system, this application has been tested with Node.js version 22.16<br>
 
-Install reqruired node modules with the command:<br>
+Install required node modules with the command:<br>
  ```bash
 npm install
 ```
