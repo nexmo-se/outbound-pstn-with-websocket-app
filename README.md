@@ -13,9 +13,9 @@ That WebSocket handles bi-directional audio, so any possible speech answer from 
 
 ## Set up
 
-### Set up the sample basic middleware server - Host server public hostname and port
+### Set up the sample middleware (aka connector) server - Host server public hostname and port
 
-First set up your middleware (aka connector) server,</br>
+First set up your middleware/connector server,</br>
 or instead for tests, use this sample connector to Deepgram STT from https://github.com/nexmo-se/deepgram-connector.
 
 Default local (not public!) of that middleware server `port` is: 6000.
