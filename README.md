@@ -13,12 +13,12 @@ That WebSocket handles bi-directional audio, so any possible speech answer from 
 
 ## Set up
 
-### Set up the sample middleware (aka connector) server - Host server public hostname and port
+### Set up the sample Connector (middleware) server - Host server public hostname and port
 
-First set up your middleware/connector server,</br>
+First set up your Connector server,</br>
 or instead for tests, use this sample connector to Deepgram STT from https://github.com/nexmo-se/deepgram-connector.
 
-Default local (not public!) of the Connector server `port` is: yyyy.
+Default local (not public!) of the Connector server `port` is: 6000.
 
 If you plan to test using a `Local deployment`, you may use ngrok (an Internet tunneling service) for both<br>
 this Voice API application<br>
@@ -30,15 +30,15 @@ Log in or sign up with [ngrok](https://ngrok.com/),<br>
 from the ngrok web UI menu, follow the **Setup and Installation** guide.
 
 Set up two tunnels,<br>
-one to forward to the local port yyyy (as the Connector application will be listening on port yyyy),<br>
+one to forward to the local port 6000 (as the Connector application will be listening on port 6000),<br>
 the other one to the local port 8000 for this Voice API application,<br>
-see this [sample yaml configuration file](https://ngrok.com/docs/agent/config/v2/#define-two-tunnels-named-httpbin-and-demo), but it needs port yyyy and 8000 as actual values,<br>
+see this [sample yaml configuration file](https://ngrok.com/docs/agent/config/v2/#define-two-tunnels-named-httpbin-and-demo)(see paragraph titled "Define two tunnels named ‘httpbin’ and ‘demo’"), but it needs port 6000 and 8000 as actual values,<br>
 depending if you have a paid ngrok account or not, you may or may not be able to set (static) domain names.
 
-Start ngrok to start both tunnels that forward to local ports yyyy and 8000, e.g.<br>
+Start ngrok to start both tunnels that forward to local ports 6000 and 8000, e.g.<br>
 `ngrok start httpbin demo` _(per the ngrok web page example)_,
 
-please take note of the ngrok Enpoint URL that forwards to local port yyyy as it will be needed here for this Voice API application environment variable as **`PROCESSOR_SERVER`** in one of the next sections, that URL looks like:<br>
+please take note of the ngrok Enpoint URL that forwards to local port 6000 as it will be needed here for this Voice API application environment variable as **`PROCESSOR_SERVER`** in one of the next sections, that URL looks like:<br>
 `xxxxxxxx.ngrok.xxx` (for ngrok),<br>
 or `myserver.mycompany.com:32000` (public host name and port of your Connector application server)<br>
 no `port` is necessary with ngrok as public host name,<br>
