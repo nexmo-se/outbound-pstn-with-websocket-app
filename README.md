@@ -110,7 +110,7 @@ above request will call the default callee number as set in the .env file,
 or
 
 `https://<this-application-server-address>/call?callee=12995550101`</br>
-above request will call the callee number specified in the command line.
+above request will call the callee number specified in the web address line.
 
 
 
