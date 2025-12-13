@@ -18,18 +18,35 @@ That WebSocket handles bi-directional audio, so any possible speech answer from 
 First set up your middleware/connector server,</br>
 or instead for tests, use this sample connector to Deepgram STT from https://github.com/nexmo-se/deepgram-connector.
 
-Default local (not public!) of that middleware server `port` is: 6000.
+Default local (not public!) of the Connector server `port` is: yyyy.
 
-If you plan to test using `Local deployment` with ngrok (Internet tunneling service) for both the sample middleware server application and this sample Voice API application, you may set up [multiple ngrok tunnels](https://ngrok.com/docs/agent/config/#tunnel-configurations).
+If you plan to test using a `Local deployment`, you may use ngrok (an Internet tunneling service) for both<br>
+this Voice API application<br>
+and the Connector application<br>
+with [multiple ngrok tunnels](https://ngrok.com/docs/agent/config/v2/#tunnel-configurations).
 
-For the next steps, you will need:
-- That middleware public hostname and if necessary public port,</br>
-e.g. `xxxxxxxx.ngrok.io`, `xxxxxxxx.herokuapp.com`, `myserver.mycompany.com:32000`  (as **`PROCESSOR_SERVER`**),</br>
-no `port` is necessary with ngrok or heroku as public hostname.</br>
+To do that, [install ngrok](https://ngrok.com/downloads).<br>
+Log in or sign up with [ngrok](https://ngrok.com/),<br>
+from the ngrok web UI menu, follow the **Setup and Installation** guide.
+
+Set up two tunnels,<br>
+one to forward to the local port yyyy (as the Connector application will be listening on port yyyy),<br>
+the other one to the local port 8000 for this Voice API application,<br>
+see this [sample yaml configuration file](https://ngrok.com/docs/agent/config/v2/#define-two-tunnels-named-httpbin-and-demo), but it needs port yyyy and 8000 as actual values,<br>
+depending if you have a paid ngrok account or not, you may or may not be able to set (static) domain names.
+
+Start ngrok to start both tunnels that forward to local ports yyyy and 8000, e.g.<br>
+`ngrok start httpbin demo` _(per the ngrok web page example)_,
+
+please take note of the ngrok Enpoint URL that forwards to local port yyyy as it will be needed here for this Voice API application environment variable as **`PROCESSOR_SERVER`** in one of the next sections, that URL looks like:<br>
+`xxxxxxxx.ngrok.xxx` (for ngrok),<br>
+or `myserver.mycompany.com:32000` (public host name and port of your Connector application server)<br>
+no `port` is necessary with ngrok as public host name,<br>
+that host name to specify must not have a leading protocol text such as `https://`, `wss://`, nor trailing `/`.
 
 ### Set up your Vonage Voice API application credentials and phone number
 
-[Log in to your](https://dashboard.nexmo.com/sign-in) or [sign up for a](https://dashboard.nexmo.com/sign-up) Vonage APIs account.
+[Log in to your](https://dashboard.nexmo.com/sign-in) or [sign up for a](https://ui.idp.vonage.com/ui/auth/registration) Vonage APIs account.
 
 Go to [Your applications](https://dashboard.nexmo.com/applications), access an existing application or [+ Create a new application](https://dashboard.nexmo.com/applications/new).
 
@@ -39,8 +56,8 @@ Enable Voice
 - Under Answer URL, leave HTTP GET, and enter https://\<host\>:\<port\>/answer (replace \<host\> and \<port\> with the public host name and if necessary public port of the server where this sample application is running)</br>
 - Under Event URL, **select** HTTP POST, and enter https://\<host\>:\<port\>/event (replace \<host\> and \<port\> with the public host name and if necessary public port of the server where this sample application is running)</br>
 Note: If you are using ngrok for this sample application, the answer URL and event URL look like:</br>
-https://yyyyyyyy.ngrok.io/answer</br>
-https://yyyyyyyy.ngrok.io/event</br> 	
+https://yyyyyyyy.ngrok.xxx/answer</br>
+https://yyyyyyyy.ngrok.xxx/event</br> 	
 - Click on [Generate public and private key] if you did not yet create or want new ones, save the private key file in this application folder as .private.key (leading dot in the file name).</br>
 **IMPORTANT**: Do not forget to click on [Save changes] at the bottom of the screen if you have created a new key set.</br>
 - Link a phone number to this application if none has been linked to the application.
