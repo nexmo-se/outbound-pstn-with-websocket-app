@@ -105,12 +105,12 @@ _outbound-pstn-with-websocket-app.js_ at line number 225.
 From a web browser trigger outbound test calls with the web address:</br>
 
 `https://<this-application-server-address>/call`</br>
-above request will call the default 	
+above request will call the default callee number as set in the .env file,	
 
 or
 
 `https://<this-application-server-address>/call?callee=12995550101`
-
+above request will call the callee number specified in the command line.
 
 
 
