@@ -2,7 +2,7 @@
 
 ## Overview
 
-When streaming real-time audio from a PSTN leg to a WebSocket leg, e.g. for connecting to an STT (Speech-to-Text) or STS (Speech-to-Speech) AI engine, we would want to make sure thet all spoken words from the participant are captured from the beginning and not miss the very first spoken words just after PSTN call answer.
+When streaming real-time audio from a PSTN leg to a WebSocket leg, e.g. for connecting to an STT (Speech-to-Text) or STS (Speech-to-Speech) AI engine, we would want to make sure that all spoken words from the participant are captured from the beginning and not miss the very first spoken words just after PSTN call answer.
 
 To implement such solution, the Voice API application needs to:</br>
 - Establish first the WebSocket leg to the middleware (aka connector) server or to the AI engine provider,
