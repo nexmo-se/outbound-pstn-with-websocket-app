@@ -107,6 +107,8 @@ app.get('/call', (req, res) => {
 
   res.status(200).send('Ok');
 
+  console.log("Host name:", req.hostName);
+
   //-- code may be added to check that the callee argument is a valid phone number
   const callee = req.query.callee || calleeNumber; // defaults to env variable if not specified as a query parameter
   console.log("Calling", callee);
@@ -144,7 +146,7 @@ app.get('/call', (req, res) => {
     event_method: 'POST'
     })
     .then(res => {
-      console.log(">>> WebSocket created");
+      console.log(">>> WebSocket creation status:", res);
       uuidTracking[sessionId]["websocketUuid"] = res.uuid;
       // console.log('\nuuidTracking:', uuidTracking);
     })
@@ -156,7 +158,7 @@ app.get('/call', (req, res) => {
 
 app.get('/ws_answer', async(req, res) => {
 
-  const hostName = req.hostname;
+  // const hostName = req.hostname;
   // console.log("Host name:", hostName);
 
   const callee = req.query.callee;
@@ -165,21 +167,11 @@ app.get('/ws_answer', async(req, res) => {
 
   const nccoResponse = [
     {
-      "action": "connect",
-      "eventUrl": ["https://" + hostName + "/pstn_event?session_id=" + sessionId],
-      "timeout": "45",
-      "from": servicePhoneNumber,
-      "endpoint": [
-        {
-          "type": "phone",
-          "number": callee
-        }
-      ]
+      "action": "conversation",
+      "name": "conf_" + req.query.uuid,
+      "startOnEnter": true
     }
-  ];
-
-  console.log('>>> WebSocket connection established, now calling phone number:', callee);
-  console.log(nccoResponse);  
+  ]; 
 
   res.status(200).json(nccoResponse);
 
@@ -190,6 +182,36 @@ app.get('/ws_answer', async(req, res) => {
 app.post('/ws_event', async(req, res) => {
 
   res.status(200).send('Ok');
+
+  const hostName = req.hostname;
+
+  if (req.body.type == 'transfer') {
+
+    const callee = req.query.callee;
+    const sessionId = req.query.session_id;
+
+    //-- Outgoing PSTN call --
+    vonage.voice.createOutboundCall({
+      to: [{
+        type: 'phone',
+        number: callee
+      }],
+      from: {
+       type: 'phone',
+       number: servicePhoneNumber
+      },
+      answer_url: ['https://' + hostName + '/pstn_answer?ws_uuid=' + req.body.uuid + '&session_id=' + sessionId],
+      answer_method: 'GET',
+      event_url: ['https://' + hostName + '/pstn_event?ws_uuid=' + req.body.uuid + '&session_id=' + sessionId],
+      event_method: 'POST'
+      })
+      .then(res => {
+        console.log(">>> PSTN call to", callee);
+        uuidTracking[sessionId]["pstnUuid"] = res.uuid;
+        // console.log('\nuuidTracking:', uuidTracking);
+      })
+      .catch(err => console.error(">>> Outgoing PSTN call error to", callee, err))
+  };
 
   //--
 
@@ -203,43 +225,44 @@ app.post('/ws_event', async(req, res) => {
 
 //--------------
 
+app.get('/pstn_answer', async(req, res) => {
+
+  const nccoResponse = [
+    {
+      "action": "conversation",
+      "name": "conf_" + req.query.ws_uuid,
+      "startOnEnter": true,
+      "endOnExit": true
+    }
+  ]; 
+
+  res.status(200).json(nccoResponse);
+
+  //-- notify connector server that PSTN call has been answered
+
+  const sessionId = req.query.session_id;
+  const wsUuid = uuidTracking[sessionId]["websocketUuid"];
+      
+  vonage.voice.playDTMF(wsUuid, '8') 
+    .then(resp => console.log("Play DTMF to WebSocket", wsUuid))
+    .catch(err => console.error("Error play DTMF to WebSocket", wsUuid, err));
+
+ });
+
+//--------------
+
 app.post('/pstn_event', async(req, res) => {
 
   res.status(200).send('Ok');
 
+  //--
+
   const sessionId =  req.query.session_id;
 
-  switch (req.body.status) {
-
-    case 'ringing':
-      
-      uuidTracking[sessionId]["pstnUuid"] = req.body.uuid;
-      // console.log('\nuuidTracking:', uuidTracking);
-      break;
-
-
-    case 'answered': // OPTIONAL - using DTMF event to indicate WebSocket server (remote end, your middleware)
-                     // that PSTN call has just been answered
-      const wsUuid = uuidTracking[sessionId]["websocketUuid"]
-      
-      vonage.voice.playDTMF(wsUuid, '8') 
-        .then(resp => console.log("Play DTMF to WebSocket", wsUuid))
-        .catch(err => console.error("Error play DTMF to WebSocket", wsUuid, err));
-      
-      break;  
-
-
-    case 'completed':
+  if (req.body.status == 'completed') {
       
       deleteFromUuidTracking(sessionId);
       // console.log('\nuuidTracking:', uuidTracking);
-      
-      break; 
-      
-      
-    default:   
-
-      // do nothing
 
   }
 
