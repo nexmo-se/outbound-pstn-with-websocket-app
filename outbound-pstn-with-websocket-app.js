@@ -126,7 +126,7 @@ app.get('/call', (req, res) => {
   const webhookUrl = encodeURIComponent('https://' + hostName + '/results?session_id=' + sessionId)
 
 
-  const wsUri = 'wss://' + processorServer + '/socket?callee=' + callee + '&session_id=' + sessionId + '&webhook_url=' + webhookUrl;   
+  const wsUri = 'wss://' + processorServer + '/socket?callee=' + callee + '&session_id=' + sessionId + '&webhook_url=' + webhookUrl + '&outbound_pstn=true';   
   console.log('>>> Create Websocket:', wsUri);
 
   vonage.voice.createOutboundCall({
