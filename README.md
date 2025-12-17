@@ -13,10 +13,9 @@ That WebSocket handles bi-directional audio, so any possible speech answer from 
 
 ## Set up
 
-### Set up the sample Connector (middleware) server - Host server public hostname and port
+### Set up the peer Connector (middleware) server - Host server public hostname and port
 
-First set up your Connector server,</br>
-or instead for tests, use this sample connector to Deepgram STT from https://github.com/nexmo-se/deepgram-connector.
+First set up the peer Connector server to Deepgram STT from https://github.com/nexmo-se/deepgram-connector-native-ws-skip-initial-silence.
 
 Default local (not public!) of the Connector server `port` is: 6000.
 
@@ -98,7 +97,7 @@ this is achieved by sending a DTMF over the WebSocket, the middleware receives a
 _>>> Websocket text message: {"event":"websocket:dtmf","digit":"8","duration":130}_
 
 That notification is sent by the Voice API application</br>
-_outbound-pstn-with-websocket-app.js_ at line number 225. 
+_outbound-pstn-with-websocket-app.js_ at line number 244. 
 
 ### Try the application
 
