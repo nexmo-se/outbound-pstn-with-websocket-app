@@ -107,8 +107,6 @@ app.get('/call', (req, res) => {
 
   res.status(200).send('Ok');
 
-  console.log("Host name:", req.hostName);
-
   //-- code may be added to check that the callee argument is a valid phone number
   const callee = req.query.callee || calleeNumber; // defaults to env variable if not specified as a query parameter
   console.log("Calling", callee);
@@ -217,7 +215,7 @@ app.post('/ws_event', async(req, res) => {
 
   if (req.body.status == 'completed') {
 
-    console.log('>>> Websocket leg', req.body.uuid, 'terminated');
+    console.log('\n>>> Websocket leg', req.body.uuid, 'terminated');
   
   };
 
@@ -276,8 +274,24 @@ app.post('/results', async(req, res) => { // Real-Time STT results
 
   const sessionId =  req.query.session_id;
 
-  console.log('\nTranscript for callee', uuidTracking[sessionId]["callee"] + ',', 'pstn uuid', uuidTracking[sessionId]["pstnUuid"] + ',', 'ws uuid', uuidTracking[sessionId]["websocketUuid"]);
-  console.log(req.body.transcript);
+  if (req.body.type == "Results") {
+    
+    const transcript = req.body.channel.alternatives[0].transcript;
+    
+    if(transcript!= "") {
+      console.log('\nTranscript for callee', uuidTracking[sessionId]["callee"] + ',', 'pstn uuid', uuidTracking[sessionId]["pstnUuid"] + ',', 'ws uuid', uuidTracking[sessionId]["websocketUuid"]);
+      console.log(transcript);
+      //--
+      const speaker = req.body.channel.alternatives[0].words[0].speaker;
+      if (speaker != undefined) {
+        console.log('Speaker:', speaker)
+      }
+    }
+  }
+  // else {
+  //   console.log('\nSession', sessionId, 'info from DG:');
+  //   console.log(req.body);
+  // }  
 
 });
 
