@@ -289,6 +289,8 @@ app.post('/pstn_event', async(req, res) => {
 
       const accessToken = tokenGenerate(appId, privateKey, {});
     
+      // see https://nexmoinc.github.io/conversation-service-docs/docs/api/create-recording
+      // note: v1 or v0.3 are the same
       try { 
         const response = await axios.post(apiBaseUrl + '/v1/legs/' + uuid + '/recording',
           {

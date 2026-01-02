@@ -124,7 +124,7 @@ In the .env file, set the parameter RECORD_ALL_CALLS to true.</br>
 #### Choice 2 - Audio recording on a per designated call basis
 
 If in the .env file the parameter RECORD_ALL_CALLS is set to false,</br>
-you may still trigger audio recording on a per designated call basis by adding the query parameter _record=true_ (see next section for sample requests)</br>
+you may still trigger audio recording on a per designated call basis by adding the query parameter _record=true_ (see next section for sample requests).</br>
 
 ### Try the application
 
