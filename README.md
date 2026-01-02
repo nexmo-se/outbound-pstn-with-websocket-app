@@ -92,7 +92,7 @@ node outbound-pstn-with-websocket-app
 Default local (not public!) of this application server `port` is: 8000.
 
 
-### OPTIONAL - Notify middleware application when outbound PSTN call has been answered
+### Optional - Notify middleware application when outbound PSTN call has been answered
 
 Your middleware (aka connector) server (at the other end the WebSocket) application may want to be notified at the exact moment the corresponding PSTN call is answered by the callee,</br>
 this is achieved by sending a DTMF over the WebSocket, the middleware receives a text type message on the WebSocket which text payload looks like this (as seen on the terminal where the middleware code runs):</br>
@@ -102,7 +102,7 @@ _>>> Websocket text message: {"event":"websocket:dtmf","digit":"8","duration":13
 That notification is sent by the Voice API application</br>
 _outbound-pstn-with-websocket-app.js_ at line number 264.
 
-### OPTIONAL - Audio recording of PSTN calls
+### Optional - Audio recording of PSTN calls
 
 If you want to record some designated or all PSTN calls, you must:</br>
 
