@@ -1,6 +1,3 @@
-update for recording and RTC webhook
-
-
 # Application using Vonage Voice API for an outbound PSTN call linked to a WebSocket
 
 ## Overview
