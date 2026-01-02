@@ -10,7 +10,10 @@ const app = express();
 
 app.use(bodyParser.json());
 
-const crypto = require("crypto"); 
+const crypto = require("crypto");
+const fs = require('fs');
+const axios = require('axios');
+const moment = require('moment');
 
 //---- CORS policy - Update this section as needed ----
 
@@ -36,25 +39,31 @@ console.log("Service phone number:", servicePhoneNumber);
 const calleeNumber = process.env.CALLEE_NUMBER;
 console.log("Test default PSTN callee phone number:", calleeNumber);
 
+const recordAllCalls = process.env.RECORD_ALL_CALLS == "true" ? true : false;
+
 //--- Vonage API ---
 
 const { Auth } = require('@vonage/auth');
 
+const appId = process.env.APP_ID;
+
 const credentials = new Auth({
   apiKey: process.env.API_KEY,
   apiSecret: process.env.API_SECRET,
-  applicationId: process.env.APP_ID,
-  privateKey: './.private.key'    // private key file name with a leading dot 
+  applicationId: appId,
+  privateKey: './.private.key'    // private key file name with a leading dot
 });
 
 const { Vonage } = require('@vonage/server-sdk');
 
 const vonage = new Vonage(credentials);
 
-// Use for direct REST API calls - Sample code
-// const appId = process.env.APP_ID; // used by tokenGenerate
-// const privateKey = fs.readFileSync('./.private.key'); // used by tokenGenerate
-// const { tokenGenerate } = require('@vonage/jwt');
+//- Use for direct REST API calls (e.g. call recording) -
+// TBD try load private key once
+const apiBaseUrl = process.env.API_BASE_URL;
+// const apiBaseUrl = 'https://api-us.vonage.com';
+const privateKey = fs.readFileSync('./.private.key'); // used by tokenGenerate
+const { tokenGenerate } = require('@vonage/jwt');
 
 //-------------------
 
@@ -99,9 +108,13 @@ function deleteFromUuidTracking(id) {
 //===========================================================
 
 //-- Trigger an outbound PSTN call - see sample request below
+
 //-- Sample request: https://<server-address/call?callee=12995551212
-//-- or
-//-- Sample request: https://<server-address/call  (to use default parameters from .env file)
+//-- Sample request: https://<server-address/call?callee=12995551212&record=true (only this call is recorded)
+
+//-- or to use default callee number from .env file
+//-- Sample request: https://<server-address/call
+//-- Sample request: https://<server-address/call?record=true (only this call is recorded)
 
 app.get('/call', (req, res) => {
 
@@ -111,10 +124,17 @@ app.get('/call', (req, res) => {
   const callee = req.query.callee || calleeNumber; // defaults to env variable if not specified as a query parameter
   console.log("Calling", callee);
 
+  //-- record this call only (if RECORD_ALL_CALLS in .env is set to false)
+  const recordThisCall = req.query.record == "true" ? true : false;
+  console.log("Record this PSTN call", recordThisCall);
+
   const sessionId = crypto.randomUUID(); ; 
   addSessionIdToUuidTracking(sessionId); // object used to track WebSocket leg uuid and PSTN leg uuid
   
   uuidTracking[sessionId]["callee"] = callee;
+  // console.log('\nuuidTracking:', uuidTracking);
+
+  uuidTracking[sessionId]["recordThisCall"] = recordThisCall;
   // console.log('\nuuidTracking:', uuidTracking);
 
   const hostName = req.hostname;
@@ -124,7 +144,7 @@ app.get('/call', (req, res) => {
   const webhookUrl = encodeURIComponent('https://' + hostName + '/results?session_id=' + sessionId)
 
 
-  const wsUri = 'wss://' + processorServer + '/socket?callee=' + callee + '&session_id=' + sessionId + '&webhook_url=' + webhookUrl + '&outbound_pstn=true';   
+  const wsUri = 'wss://' + processorServer + '/socket?pstn_number=' + callee + '&session_id=' + sessionId + '&webhook_url=' + webhookUrl;   
   console.log('>>> Create Websocket:', wsUri);
 
   vonage.voice.createOutboundCall({
@@ -257,12 +277,54 @@ app.post('/pstn_event', async(req, res) => {
 
   const sessionId =  req.query.session_id;
 
-  if (req.body.status == 'completed') {
-      
-      deleteFromUuidTracking(sessionId);
-      // console.log('\nuuidTracking:', uuidTracking);
+  //--
+
+  if (uuidTracking[sessionId]["recordThisCall"] || recordAllCalls) { // record this specific PSTN call or all PSTN calls are being recorded)
+
+    // if (req.body.status == 'started') {
+    // if (req.body.status == 'ringing') {
+    if (req.body.status == 'answered') { 
+
+      const uuid = uuidTracking[sessionId]["pstnUuid"];
+
+      const accessToken = tokenGenerate(appId, privateKey, {});
+    
+      try { 
+        const response = await axios.post(apiBaseUrl + '/v1/legs/' + uuid + '/recording',
+          {
+            "split": true,
+            "streamed": true,
+            // "beep": true,
+            "public": true,
+            "validity_time": 30,
+            "format": "mp3",
+          },
+          {
+            headers: {
+              "Authorization": 'Bearer ' + accessToken,
+              "Content-Type": 'application/json'
+            }
+          }
+        );
+        console.log('\n>>> Start recording on leg:', uuid);
+      } catch (error) {
+        console.log('\n>>> Error start recording on leg:', uuid, error);
+      }
+
+    }
 
   }
+  
+  //--
+
+  if (req.body.status == 'completed') {
+      
+    deleteFromUuidTracking(sessionId);
+    // console.log('\nuuidTracking:', uuidTracking);
+
+  }
+
+  //--
 
  });
 
@@ -294,6 +356,35 @@ app.post('/results', async(req, res) => { // Real-Time STT results
   // }  
 
 });
+
+//-------------------
+
+app.post('/rtc', async(req, res) => {
+
+  res.status(200).send('Ok');
+
+  if (req.body.type == "audio:record:done") {
+
+    // TBD use call uuid in file name
+
+    console.log('\n>>> /rtc audio:record:done');
+    // console.log('req.body.body.destination_url', req.body.body.destination_url);
+    // console.log('req.body.body.recording_id', req.body.body.recording_id);
+
+    const uuid = req.body.body.channel.legs[0].leg_id;
+    console.log('call leg uuid:', uuid);
+
+    const callee = req.body.body.channel.to.number;
+    console.log('callee number:', callee);
+
+    //-- here, you may create your own PSTN audio recording file name template after './post-call-data/'
+    await vonage.voice.downloadRecording(req.body.body.destination_url, './post-call-data/' + callee + '_' + moment(Date.now()).format('YYYY_MM_DD_HH_mm_ss_SSS') + '_pstn_' + uuid + '.wav'); // using server local time, not UTC
+    // await vonage.voice.downloadRecording(req.body.body.destination_url, './post-call-data/' + callee + '_' + moment.utc(Date.now()).format('YYYY_MM_DD_HH_mm_ss_SSS') + '_pstn_' + uuid + '.wav'); // using UTC
+
+  }
+
+});
+
 
 //============= Processing unexpected inbound PSTN calls ===============
 

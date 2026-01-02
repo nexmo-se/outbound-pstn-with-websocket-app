@@ -1,3 +1,6 @@
+update for recording and RTC webhook
+
+
 # Application using Vonage Voice API for an outbound PSTN call linked to a WebSocket
 
 ## Overview
@@ -97,19 +100,47 @@ this is achieved by sending a DTMF over the WebSocket, the middleware receives a
 _>>> Websocket text message: {"event":"websocket:dtmf","digit":"8","duration":130}_
 
 That notification is sent by the Voice API application</br>
-_outbound-pstn-with-websocket-app.js_ at line number 244. 
+_outbound-pstn-with-websocket-app.js_ at line number 264.
+
+### OPTIONAL - Audio recording of PSTN calls
+
+If you want to record some designated or all PSTN calls, you must:</br>
+
+Access your account on dashboard.nexmo.com,<br>
+edit the application associated to this server code,<br>
+enable "RTC (In-app voice & messaging)", and set the corresponding webhook URL, then [Save changes].<br>
+
+In this sample application, the webhook URL relative path is:<br>
+HTTP POST /rtc for the RTC Event URL<br>
+
+Audio recording files will be stored in the ./post-call-data folder.</br>
+
+Important: Make sure there is enough disk storage as you may need to manually delete the created recording files.</br>
+
+#### Choice 1 - Audio recording of all PSTN calls
+
+In the .env file, set the parameter RECORD_ALL_CALLS to true.</br>
+
+#### Choice 2 - Audio recording on a per designated call basis
+
+If in the .env file the parameter RECORD_ALL_CALLS is set to false,</br>
+you may still trigger audio recording on a per designated call basis by adding the query parameter _record=true_ (see next section for sample requests)</br>
 
 ### Try the application
 
 From a web browser trigger outbound test calls with the web address:</br>
 
 `https://<this-application-server-address>/call`</br>
-above request will call the default callee number as set in the .env file,	
+`https://<this-application-server-address>/call?record=true`</br>
+either of above requests will call the default callee number as set in the .env file,</br>
+the second sample request will trigger audio recording for that very call,</br>
 
 or
 
 `https://<this-application-server-address>/call?callee=12995550101`</br>
-above request will call the callee number specified in the web address line.
+`https://<this-application-server-address>/call?callee=12995550101&record=true`</br>
+either of above requests will call the callee number specified in the web address line,</br>
+the second sample request will trigger audio recording for that very call.</br>
 
 
 
