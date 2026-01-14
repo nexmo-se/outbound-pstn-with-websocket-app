@@ -59,7 +59,7 @@ const { Vonage } = require('@vonage/server-sdk');
 const vonage = new Vonage(credentials);
 
 //- Use for direct REST API calls (e.g. call recording) -
-// TBD try load private key once
+
 const apiBaseUrl = process.env.API_BASE_URL;
 // const apiBaseUrl = 'https://api-us.vonage.com';
 const privateKey = fs.readFileSync('./.private.key'); // used by tokenGenerate
@@ -72,82 +72,57 @@ const processorServer = process.env.PROCESSOR_SERVER;
 
 //-------------------
 
-let uuidTracking = {}; // dictionary
+let sessionTracking = {}; // dictionary
 
-function addSessionIdToUuidTracking(id) {
-  uuidTracking[id] = {};
-  uuidTracking[id]["pstnUuid"] = null;
-  uuidTracking[id]["websocketUuid"] = null;
+function addToSessionTracking(id) {
+  sessionTracking[id] = {};
+  sessionTracking[id]["sessionId"] = null;
+  // sessionTracking[id]["convUuid"] = null;
+  sessionTracking[id]["websocketUuid"] = null;
+  sessionTracking[id]["pstnUuid"] = null;
+  sessionTracking[id]["callee"] = null;
 }
 
-function deleteFromUuidTracking(id) {
-  delete uuidTracking[id];
+function deleteFromSessionTracking(id) {
+  delete sessionTracking[id];
 }
-
-// // -- testing it ------
-
-// addSessionIdToUuidTracking('111');
-// console.log('\nuuidTracking:', uuidTracking);
-
-// uuidTracking['111']["pstnUuid"] = 'p111';
-// uuidTracking['111']["websocketUuid"] = 'w111';
-// uuidTracking['111']["callee"] = '12995550101';
-// console.log('\nuuidTracking:', uuidTracking);
-
-// addSessionIdToUuidTracking('222');
-// console.log('\nuuidTracking:', uuidTracking);
-
-// uuidTracking['222']["pstnUuid"] = 'p222';
-// uuidTracking['222']["websocketUuid"] = 'w222';
-// uuidTracking['222']["callee"] = '12995550202';
-// console.log('\nuuidTracking:', uuidTracking);
-
-// deleteFromUuidTracking('111');
-// console.log('\nuuidTracking:', uuidTracking);
 
 //===========================================================
 
 //-- Trigger an outbound PSTN call - see sample request below
 
 //-- Sample request: https://<server-address/call?callee=12995551212
-//-- Sample request: https://<server-address/call?callee=12995551212&record=true (only this call is recorded)
 
 //-- or to use default callee number from .env file
 //-- Sample request: https://<server-address/call
-//-- Sample request: https://<server-address/call?record=true (only this call is recorded)
 
-app.get('/call', (req, res) => {
+app.get('/call', async (req, res) => {
 
-  res.status(200).send('Ok');
+  // res.status(200).send('Ok');
 
   //-- code may be added to check that the callee argument is a valid phone number
   const callee = req.query.callee || calleeNumber; // defaults to env variable if not specified as a query parameter
   console.log("Calling", callee);
 
-  //-- record this call only (if RECORD_ALL_CALLS in .env is set to false)
-  const recordThisCall = req.query.record == "true" ? true : false;
-  console.log("Record this PSTN call", recordThisCall);
-
-  const sessionId = crypto.randomUUID(); ; 
-  addSessionIdToUuidTracking(sessionId); // object used to track WebSocket leg uuid and PSTN leg uuid
-  
-  uuidTracking[sessionId]["callee"] = callee;
-  // console.log('\nuuidTracking:', uuidTracking);
-
-  uuidTracking[sessionId]["recordThisCall"] = recordThisCall;
-  // console.log('\nuuidTracking:', uuidTracking);
-
   const hostName = req.hostname;
   // console.log("Host name:", hostName);
+
+  const sessionId = crypto.randomUUID();
+  addToSessionTracking(sessionId);
+
+  sessionTracking[sessionId]["callee"] = callee;
 
   //-- WebSocket connection --
   const webhookUrl = encodeURIComponent('https://' + hostName + '/results?session_id=' + sessionId)
 
-
-  const wsUri = 'wss://' + processorServer + '/socket?pstn_number=' + callee + '&session_id=' + sessionId + '&webhook_url=' + webhookUrl;   
+  const wsUri = 'wss://' + processorServer + '/socket?outbound_pstn=true&session_id=' + sessionId + '&webhook_url=' + webhookUrl;   
   console.log('>>> Create Websocket:', wsUri);
 
-  vonage.voice.createOutboundCall({
+  //--
+
+  let sessionStatus;
+
+  await vonage.voice.createOutboundCall({
     to: [{
       type: 'websocket',
       uri: wsUri,
@@ -158,114 +133,59 @@ app.get('/call', (req, res) => {
       type: 'phone',
       number: callee
     },
-    answer_url: ['https://' + hostName + '/ws_answer?callee=' + callee + '&session_id=' + sessionId],
-    answer_method: 'GET',
-    event_url: ['https://' + hostName + '/ws_event?callee=' + callee + '&session_id=' + sessionId],
-    event_method: 'POST'
+    event_url: ['https://' + hostName + '/ws_event?session_id=' + sessionId],
+    event_method: 'POST',
+    ncco: [
+      {
+        "action": "connect",
+        "eventUrl": ['https://' + hostName + '/pstn_event?session_id=' + sessionId],
+        "timeout": "45",  // adjust this value for your use case
+        "from": servicePhoneNumber,
+        "endpoint": [
+          {
+            "type": "phone",
+            "number": callee
+          }
+        ]
+      }
+    ]
+
     })
     .then(res => {
-      console.log(">>> WebSocket creation status:", res);
-      uuidTracking[sessionId]["websocketUuid"] = res.uuid;
-      // console.log('\nuuidTracking:', uuidTracking);
+      console.log(">>> WebSocket created for callee", callee, res);
+      // sessionTracking[sessionId]["convUuid"] = req.conversation_uuid;
+      sessionTracking[sessionId]["websocketUuid"] = res.uuid;
+      sessionStatus = 'Session-id:' + sessionId;
     })
-    .catch(err => console.error(">>> WebSocket create error:", err));
- 
+    .catch(err => {
+      console.error(">>> WebSocket create error for callee", callee, err);
+      sessionStatus = 'Failed to create WebSocket for callee ' + callee + ' ' + err;
+    });
+
+  res.status(200).send(sessionStatus);    
+
 });
 
 //--------------
-
-app.get('/ws_answer', async(req, res) => {
-
-  // const hostName = req.hostname;
-  // console.log("Host name:", hostName);
-
-  const callee = req.query.callee;
-
-  const sessionId =  req.query.session_id;
-
-  const nccoResponse = [
-    {
-      "action": "conversation",
-      "name": "conf_" + req.query.uuid,
-      "startOnEnter": true
-    }
-  ]; 
-
-  res.status(200).json(nccoResponse);
-
- });
-
-//------------
 
 app.post('/ws_event', async(req, res) => {
 
   res.status(200).send('Ok');
 
-  const hostName = req.hostname;
+  //--
 
-  if (req.body.type == 'transfer') {
-
-    const callee = req.query.callee;
-    const sessionId = req.query.session_id;
-
-    //-- Outgoing PSTN call --
-    vonage.voice.createOutboundCall({
-      to: [{
-        type: 'phone',
-        number: callee
-      }],
-      from: {
-       type: 'phone',
-       number: servicePhoneNumber
-      },
-      answer_url: ['https://' + hostName + '/pstn_answer?ws_uuid=' + req.body.uuid + '&session_id=' + sessionId],
-      answer_method: 'GET',
-      event_url: ['https://' + hostName + '/pstn_event?ws_uuid=' + req.body.uuid + '&session_id=' + sessionId],
-      event_method: 'POST'
-      })
-      .then(res => {
-        console.log(">>> PSTN call to", callee);
-        uuidTracking[sessionId]["pstnUuid"] = res.uuid;
-        // console.log('\nuuidTracking:', uuidTracking);
-      })
-      .catch(err => console.error(">>> Outgoing PSTN call error to", callee, err))
-  };
+  if (req.status == 'completed') {
+    // info no longer needed
+    deleteFromSessionTracking(req.body.conversation_uuid);
+  }
 
   //--
 
-  if (req.body.status == 'completed') {
+  // console.log('\n/ws_event:\n' + JSON.stringify(req.body, null, 2));
 
-    console.log('\n>>> Websocket leg', req.body.uuid, 'terminated');
-  
-  };
+  //--
 
 });
-
-//--------------
-
-app.get('/pstn_answer', async(req, res) => {
-
-  const nccoResponse = [
-    {
-      "action": "conversation",
-      "name": "conf_" + req.query.ws_uuid,
-      "startOnEnter": true,
-      "endOnExit": true
-    }
-  ]; 
-
-  res.status(200).json(nccoResponse);
-
-  //-- notify connector server that PSTN call has been answered
-
-  const sessionId = req.query.session_id;
-  const wsUuid = uuidTracking[sessionId]["websocketUuid"];
-      
-  vonage.voice.playDTMF(wsUuid, '8') 
-    .then(resp => console.log("Play DTMF to WebSocket", wsUuid))
-    .catch(err => console.error("Error play DTMF to WebSocket", wsUuid, err));
-
- });
 
 //--------------
 
@@ -273,62 +193,29 @@ app.post('/pstn_event', async(req, res) => {
 
   res.status(200).send('Ok');
 
-  //--
+  //--- send DTMF to ws leg when pstn leg get status answered ---
 
-  const sessionId =  req.query.session_id;
+  if (req.body.status == 'answered') {
 
-  //--
+    const sessionId = req.query.session_id;
 
-  if (uuidTracking[sessionId]["recordThisCall"] || recordAllCalls) { // record this specific PSTN call or all PSTN calls are being recorded)
+    sessionTracking[sessionId]["pstnUuid"] = req.body.uuid;
 
-    // if (req.body.status == 'started') {
-    // if (req.body.status == 'ringing') {
-    if (req.body.status == 'answered') { 
+    const wsUuid = sessionTracking[sessionId]["websocketUuid"];
 
-      const uuid = uuidTracking[sessionId]["pstnUuid"];
-
-      const accessToken = tokenGenerate(appId, privateKey, {});
-    
-      // see https://nexmoinc.github.io/conversation-service-docs/docs/api/create-recording
-      // note: v1 or v0.3 are the same
-      try { 
-        const response = await axios.post(apiBaseUrl + '/v1/legs/' + uuid + '/recording',
-          {
-            "split": true,
-            "streamed": true,
-            // "beep": true,
-            "public": true,
-            "validity_time": 30,
-            "format": "mp3",
-          },
-          {
-            headers: {
-              "Authorization": 'Bearer ' + accessToken,
-              "Content-Type": 'application/json'
-            }
-          }
-        );
-        console.log('\n>>> Start recording on leg:', uuid);
-      } catch (error) {
-        console.log('\n>>> Error start recording on leg:', uuid, error);
-      }
-
-    }
-
-  }
-  
-  //--
-
-  if (req.body.status == 'completed') {
-      
-    deleteFromUuidTracking(sessionId);
-    // console.log('\nuuidTracking:', uuidTracking);
+    vonage.voice.playDTMF(wsUuid, '8') 
+      .then(resp => console.log("Play DTMF to WebSocket", wsUuid))
+      .catch(err => console.error("Error play DTMF to WebSocket", wsUuid, err));
 
   }
 
   //--
 
- });
+  // console.log('\n/pstn_event:\n' + JSON.stringify(req.body, null, 2));
+
+  //--
+
+});
 
 //------------
 
@@ -337,13 +224,14 @@ app.post('/results', async(req, res) => { // Real-Time STT results
   res.status(200).send('Ok');
 
   const sessionId =  req.query.session_id;
+  // const convUuid = req.query.conv_uuid;
 
   if (req.body.type == "Results") {
     
     const transcript = req.body.channel.alternatives[0].transcript;
     
     if(transcript!= "") {
-      console.log('\nTranscript for callee', uuidTracking[sessionId]["callee"] + ',', 'pstn uuid', uuidTracking[sessionId]["pstnUuid"] + ',', 'ws uuid', uuidTracking[sessionId]["websocketUuid"]);
+      console.log('\nTranscript for session', sessionId, ', callee', sessionTracking[sessionId]["callee"] + ', pstn uuid', sessionTracking[sessionId]["pstnUuid"] + ', ws uuid', sessionTracking[sessionId]["websocketUuid"]);
       console.log(transcript);
       //--
       const speaker = req.body.channel.alternatives[0].words[0].speaker;
