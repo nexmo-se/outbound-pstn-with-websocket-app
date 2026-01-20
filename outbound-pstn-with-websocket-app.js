@@ -266,7 +266,7 @@ app.get('/addmanycalls', async (req, res) => {
 
   //----
 
-  // just for illustration we add the default callee number multiple tomes
+  // just for illustration we add the default callee number multiple times
   // normally it would be different numbers from your own database
 
   callsToMake.push({to: calleeNumber, from: servicePhoneNumber})
