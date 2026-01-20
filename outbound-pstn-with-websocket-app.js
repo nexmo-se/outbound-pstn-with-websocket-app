@@ -36,8 +36,13 @@ app.use(function (req, res, next) {
 const servicePhoneNumber = process.env.SERVICE_PHONE_NUMBER;
 console.log("Service phone number:", servicePhoneNumber);
 
+const servicePhoneNumber2 = process.env.SERVICE_PHONE_NUMBER_2 || null;
+if (servicePhoneNumber2) {
+  console.log("Service phone number 2:", servicePhoneNumber2);  
+};
+
 const calleeNumber = process.env.CALLEE_NUMBER;
-console.log("Test default PSTN callee phone number:", calleeNumber);
+console.log("Default PSTN callee phone number for tests:", calleeNumber);
 
 const recordAllCalls = process.env.RECORD_ALL_CALLS == "true" ? true : false;
 
@@ -76,51 +81,64 @@ let sessionTracking = {}; // dictionary
 
 function addToSessionTracking(id) {
   sessionTracking[id] = {};
-  sessionTracking[id]["sessionId"] = null;
-  // sessionTracking[id]["convUuid"] = null;
   sessionTracking[id]["websocketUuid"] = null;
   sessionTracking[id]["pstnUuid"] = null;
   sessionTracking[id]["callee"] = null;
+  sessionTracking[id]["caller"] = null;
+  // sessionTracking[id]["convUuid"] = null;
 }
 
 function deleteFromSessionTracking(id) {
   delete sessionTracking[id];
 }
 
+//-- Call throttling parameters --
+
+const cps = Number(process.env.CPS);  // max call attempts per second
+const addedDelay = Number(process.env.ADDED_DELAY); // in ms
+
+const interCallInterval = Math.ceil(1000 / cps) + addedDelay; // in ms
+
+//-- PSTN call parameters --
+
+const maxRingDuration = Math.min( Number(process.env.MAX_RING_DURATION), 60 ); // 60 sec max
+
+//-- Calls queue --
+
+let callsToMake = [];  // array with objects containing {to: callee_number, from: caller_number}
+
+//-- This server public host name, set it manually (in .env file) --
+//-- or it gets automatically set after first request to this application -
+let thisHost = process.env.THIS_HOST || null;
+
+//-- Basic counters --
+// let websocketCount = 0;
+// let pstnCount = 0;
+
+
 //===========================================================
 
-//-- Trigger an outbound PSTN call - see sample request below
+const callPhone = async(to, from) => {
 
-//-- Sample request: https://<server-address/call?callee=12995551212
+  console.log(moment(Date.now()).format('YYYY-MM-DD HH:mm:ss.SSS')); // server local time
 
-//-- or to use default callee number from .env file
-//-- Sample request: https://<server-address/call
-
-app.get('/call', async (req, res) => {
-
-  // res.status(200).send('Ok');
-
-  //-- code may be added to check that the callee argument is a valid phone number
-  const callee = req.query.callee || calleeNumber; // defaults to env variable if not specified as a query parameter
-  console.log("Calling", callee);
-
-  const hostName = req.hostname;
-  // console.log("Host name:", hostName);
+  let status;
 
   const sessionId = crypto.randomUUID();
   addToSessionTracking(sessionId);
 
-  sessionTracking[sessionId]["callee"] = callee;
+  sessionTracking[sessionId]["callee"] = to;
+  sessionTracking[sessionId]["caller"] = from;
 
   //-- WebSocket connection --
-  const webhookUrl = encodeURIComponent('https://' + hostName + '/results?session_id=' + sessionId)
+  const webhookUrl = encodeURIComponent('https://' + thisHost + '/results?session_id=' + sessionId)
 
   const wsUri = 'wss://' + processorServer + '/socket?outbound_pstn=true&session_id=' + sessionId + '&webhook_url=' + webhookUrl;   
-  console.log('>>> Create Websocket:', wsUri);
+  console.log('>>> Creating Websocket:', wsUri);
 
   //--
 
-  let sessionStatus;
+  // let sessionStatus;
 
   await vonage.voice.createOutboundCall({
     to: [{
@@ -131,39 +149,132 @@ app.get('/call', async (req, res) => {
     }],
     from: {
       type: 'phone',
-      number: callee
+      number: to
     },
-    event_url: ['https://' + hostName + '/ws_event?session_id=' + sessionId],
+    event_url: ['https://' + thisHost + '/ws_event?session_id=' + sessionId],
     event_method: 'POST',
     ncco: [
       {
         "action": "connect",
-        "eventUrl": ['https://' + hostName + '/pstn_event?session_id=' + sessionId],
-        "timeout": "45",  // adjust this value for your use case
-        "from": servicePhoneNumber,
+        "eventUrl": ['https://' + thisHost + '/pstn_event?session_id=' + sessionId],
+        "timeout": maxRingDuration,
+        "from": from,
         "endpoint": [
           {
             "type": "phone",
-            "number": callee
+            "number": to
           }
         ]
       }
     ]
-
     })
     .then(res => {
-      console.log(">>> WebSocket created for callee", callee, res);
-      // sessionTracking[sessionId]["convUuid"] = req.conversation_uuid;
+      // console.log(">>> WebSocket created for callee", to);
+      console.log("\n>>> WebSocket created", res.uuid);
+      
       sessionTracking[sessionId]["websocketUuid"] = res.uuid;
-      sessionStatus = 'Session-id:' + sessionId;
+      
+      // websocketCount++;
+      // console.log("\n>>> Number of created WebSockets so far:", websocketCount);
+      
+      status = '200';
     })
     .catch(err => {
-      console.error(">>> WebSocket create error for callee", callee, err);
-      sessionStatus = 'Failed to create WebSocket for callee ' + callee + ' ' + err;
-    });
+      // console.error("\n>>> Create WebSocket error for caller:", to, JSON.stringify(err.config.data, null, 2));
+      console.error("\n>>> Create WebSocket error for caller:", to);
+      
+      for (const s of Object.getOwnPropertySymbols(err.response)) {
+        // console.log(s, err.response[s]);
+        if (Object.hasOwn(err.response[s], "status")) {
+          status = err.response[s].status.toString();;
+        }
+      }
+    })   
 
-  res.status(200).send(sessionStatus);    
+  return(status);
 
+}
+
+//---------------------------------------------------------
+
+setInterval( async() => {  // make next outbound calls
+
+  const callInfo = callsToMake.shift();
+
+  if (callInfo) {
+
+    console.log('\n>>> callInfo:',callInfo);
+
+    const to = callInfo.to;
+    const from = callInfo.from;
+
+    // place call
+    const result = await callPhone(to, from);
+    
+    switch(result) {
+
+      case '200':
+        console.log('\n>> Started WebSocket and PSTN call for callee', to);
+        break;
+
+      case '429':    
+        console.log('\n>> WebSocket for PSTN callee', to, 'returned status code 429, trying again now');
+        // re-add on top of "callsToMake" array
+        callsToMake.unshift(callInfo);
+        break;
+
+      default:
+        if (result) {
+          console.log('\n>> WebSocket for PSTN callee', to, 'failed with status code', result);
+        }
+      
+      }
+    
+  }
+
+}, interCallInterval)
+
+
+//-----------------------
+//-- add a number to be called into the queue --
+
+app.get('/addcall', async (req, res) => {
+
+  res.status(200).send('Ok');
+
+  thisHost = req.hostname;  // set the global parameter
+  
+  // number to call, aka callee number
+  const callee = req.query.callee;
+
+  // caller number, a Vonage number linked to this application (see dashboard.vonage.com)
+  const caller = req.query.caller; 
+
+  callsToMake.push({to: callee, from: caller})
+  
+});
+
+//-----------------------
+
+//-- add many numbers (at once) to be called into the queue --
+
+app.get('/addmanycalls', async (req, res) => {
+
+  res.status(200).send('Adding calls to the calling queue ...');
+
+  thisHost = req.hostname;  // set the global parameter
+
+  //----
+
+  // just for illustration we add the default callee number multiple tomes
+  // normally it would be different numbers from your own database
+
+  callsToMake.push({to: calleeNumber, from: servicePhoneNumber})
+  callsToMake.push({to: calleeNumber, from: servicePhoneNumber})
+  callsToMake.push({to: calleeNumber, from: servicePhoneNumber})
+  callsToMake.push({to: calleeNumber, from: servicePhoneNumber})
+  callsToMake.push({to: calleeNumber, from: servicePhoneNumber})
+  
 });
 
 //--------------
@@ -174,9 +285,30 @@ app.post('/ws_event', async(req, res) => {
 
   //--
 
-  if (req.status == 'completed') {
-    // info no longer needed
-    deleteFromSessionTracking(req.body.conversation_uuid);
+  if (req.body.status == 'completed') {
+
+    const sessionId = req.query.session_id;
+
+    console.log("\n>>> WebSocket", req.body.uuid, "terminated");
+
+    if (sessionTracking[sessionId]["pstnUuid"] == null) {  // PSTN call was not placed
+
+      // make a new call by adding it to top of queue
+      callsToMake.unshift({to: sessionTracking[sessionId]["callee"], from: sessionTracking[sessionId]["caller"]})
+      console.log("\n>>> PSTN call to", sessionTracking[sessionId]["callee"], "was not placed, adding to queue again")
+
+      // there was no complete WebSocket + PSTN call, we may remove the WebSocket call from total
+      // websocketCount--;
+
+    }
+
+    //-- info no longer needed, with delay to avoid race conditions and possible late transcription results
+    setTimeout( () => {
+
+      deleteFromSessionTracking(sessionId);
+
+    }, 10000)    
+
   }
 
   //--
@@ -193,6 +325,8 @@ app.post('/pstn_event', async(req, res) => {
 
   res.status(200).send('Ok');
 
+  // console.log("\n>>> pstn_event - status", req.body.status , "conv uuid:", req.body.conversation_uuid  , "- Session tracking", req.query.session_id, sessionTracking);
+
   //--- send DTMF to ws leg when pstn leg get status answered ---
 
   if (req.body.status == 'answered') {
@@ -206,6 +340,23 @@ app.post('/pstn_event', async(req, res) => {
     vonage.voice.playDTMF(wsUuid, '8') 
       .then(resp => console.log("Play DTMF to WebSocket", wsUuid))
       .catch(err => console.error("Error play DTMF to WebSocket", wsUuid, err));
+
+  }
+
+  //--
+
+  // if (req.body.status == 'started') {
+
+  //     pstnCount++;
+  //     console.log("\n>>> Number of created PSTN calls so far:", pstnCount);
+
+  // }
+
+  //---
+
+  if (req.body.status == 'completed') {
+
+      console.log("\n>>> PSTN", req.body.uuid, "terminated");
 
   }
 
@@ -231,7 +382,10 @@ app.post('/results', async(req, res) => { // Real-Time STT results
     const transcript = req.body.channel.alternatives[0].transcript;
     
     if(transcript!= "") {
-      console.log('\nTranscript for session', sessionId, ', callee', sessionTracking[sessionId]["callee"] + ', pstn uuid', sessionTracking[sessionId]["pstnUuid"] + ', ws uuid', sessionTracking[sessionId]["websocketUuid"]);
+      
+      // console.log('\nTranscript for session', sessionId, ', callee', sessionTracking[sessionId]["callee"] + ', pstn uuid', sessionTracking[sessionId]["pstnUuid"] + ', ws uuid', sessionTracking[sessionId]["websocketUuid"]);
+      console.log('\nTranscript for callee', sessionTracking[sessionId]["callee"]);
+      
       console.log(transcript);
       //--
       const speaker = req.body.channel.alternatives[0].words[0].speaker;
@@ -239,6 +393,7 @@ app.post('/results', async(req, res) => { // Real-Time STT results
         console.log('Speaker:', speaker)
       }
     }
+  
   }
   // else {
   //   console.log('\nSession', sessionId, 'info from DG:');
@@ -284,7 +439,8 @@ app.get('/answer', async(req, res) => {
   const nccoResponse = [
     {
       "action": "talk",
-      "text": "This number does not accept incoming calls.",
+      // "text": "This number does not accept incoming calls.",
+      "text": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30.",
       "language": "en-US",
       "style": 11
     }
