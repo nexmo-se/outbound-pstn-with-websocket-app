@@ -245,10 +245,10 @@ app.get('/addcall', async (req, res) => {
   thisHost = req.hostname;  // set the global parameter
   
   // number to call, aka callee number
-  const callee = req.query.callee;
+  const callee = req.query.callee || calleeNumber;
 
   // caller number, a Vonage number linked to this application (see dashboard.vonage.com)
-  const caller = req.query.caller; 
+  const caller = req.query.caller || servicePhoneNumber;
 
   callsToMake.push({to: callee, from: caller})
   

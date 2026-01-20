@@ -114,30 +114,23 @@ Audio recording files will be stored in the ./post-call-data folder.</br>
 
 Important: Make sure there is enough disk storage as you may need to manually delete the created recording files.</br>
 
-#### Choice 1 - Audio recording of all PSTN calls
-
-In the .env file, set the parameter RECORD_ALL_CALLS to true.</br>
-
-#### Choice 2 - Audio recording on a per designated call basis
-
-If in the .env file the parameter RECORD_ALL_CALLS is set to false,</br>
-you may still trigger audio recording on a per designated call basis by adding the query parameter _record=true_ (see next section for sample requests).</br>
-
 ### Try the application
 
 From a web browser trigger outbound test calls with the web address:</br>
 
-`https://<this-application-server-address>/call`</br>
-`https://<this-application-server-address>/call?record=true`</br>
-either of above requests will call the default callee number as set in the .env file,</br>
-the second sample request will trigger audio recording for that very call,</br>
+`https://<this-application-server-address>/addcall`</br>
+to call the default callee number as set in the .env file,</br>
 
 or
 
-`https://<this-application-server-address>/call?callee=12995550101`</br>
-`https://<this-application-server-address>/call?callee=12995550101&record=true`</br>
-either of above requests will call the callee number specified in the web address line,</br>
-the second sample request will trigger audio recording for that very call.</br>
+`https://<this-application-server-address>/addcall?callee=12995551212`</br>
+to call the callee number as set in the request,
+
+or
+
+`https://<this-application-server-address>/addmanycalls`</br>
+to call many numbers as fast as possible as the cps allows,</br>
+see from line https://github.com/nexmo-se/outbound-pstn-with-websocket-app/blob/master/outbound-pstn-with-websocket-app.js#L272 the numbers being called.
 
 
 
